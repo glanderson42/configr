@@ -38,7 +38,3 @@ func ParseConfig(input interface{}) error {
 
 	return nil
 }
-
-func LoadConfig() bool {
-	return true
-}
