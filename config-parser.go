@@ -1,7 +1,6 @@
 package configr
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -22,174 +21,50 @@ func (c *ConfigParser) String() string {
 
 func (c *ConfigParser) Validate() error {
 	if c.Required && os.Getenv(c.Env) == "" && c.Default == nil {
-		return errors.New(c.FieldName + " is required")
+		return RequiredFieldError(c.FieldName)
 	}
-
 	return nil
 }
 
-func (c *ConfigParser) LoadValue(value *reflect.Value) error {
+func (c *ConfigParser) convertValue(envValue string) (interface{}, error) {
 	switch c.Type {
 	case "int":
-		if os.Getenv(c.Env) != "" {
-			val, err := strconv.Atoi(os.Getenv(c.Env))
-			if err != nil {
-				return err
-			}
-			value.SetInt(int64(val))
-			break
-		}
-
-		value.SetInt(int64(c.Default.(float64)))
+		return strconv.Atoi(envValue)
 	case "string":
-		if os.Getenv(c.Env) != "" {
-			value.SetString(os.Getenv(c.Env))
-			break
-		}
-
-		value.SetString(c.Default.(string))
+		return envValue, nil
 	case "bool":
-		if os.Getenv(c.Env) != "" {
-			val, err := strconv.ParseBool(os.Getenv(c.Env))
-			if err != nil {
-				return err
-			}
-			value.SetBool(val)
-			break
-		}
-
-		value.SetBool(c.Default.(bool))
+		return strconv.ParseBool(envValue)
 	case "float64":
-		if os.Getenv(c.Env) != "" {
-			val, err := strconv.ParseFloat(os.Getenv(c.Env), 64)
-			if err != nil {
-				return err
-			}
-			value.SetFloat(val)
-			break
-		}
-
-		value.SetFloat(c.Default.(float64))
+		return strconv.ParseFloat(envValue, 64)
 	case "float32":
-		if os.Getenv(c.Env) != "" {
-			val, err := strconv.ParseFloat(os.Getenv(c.Env), 32)
-			if err != nil {
-				return err
-			}
-			value.SetFloat(val)
-			break
-		}
-
-		value.SetFloat(float64(c.Default.(float32)))
-	case "uint":
-		if os.Getenv(c.Env) != "" {
-			val, err := strconv.ParseUint(os.Getenv(c.Env), 10, 64)
-			if err != nil {
-				return err
-			}
-			value.SetUint(val)
-			break
-		}
-
-		value.SetUint(uint64(c.Default.(float64)))
-	case "uint8":
-		if os.Getenv(c.Env) != "" {
-			val, err := strconv.ParseUint(os.Getenv(c.Env), 10, 8)
-			if err != nil {
-				return err
-			}
-			value.SetUint(val)
-			break
-		}
-
-		value.SetUint(uint64(c.Default.(float64)))
-	case "uint16":
-		if os.Getenv(c.Env) != "" {
-			val, err := strconv.ParseUint(os.Getenv(c.Env), 10, 16)
-			if err != nil {
-				return err
-			}
-			value.SetUint(val)
-			break
-		}
-
-		value.SetUint(uint64(c.Default.(float64)))
-	case "uint32":
-		if os.Getenv(c.Env) != "" {
-			val, err := strconv.ParseUint(os.Getenv(c.Env), 10, 32)
-			if err != nil {
-				return err
-			}
-			value.SetUint(val)
-			break
-		}
-
-		value.SetUint(uint64(c.Default.(float64)))
-	case "uint64":
-		if os.Getenv(c.Env) != "" {
-			val, err := strconv.ParseUint(os.Getenv(c.Env), 10, 64)
-			if err != nil {
-				return err
-			}
-			value.SetUint(val)
-			break
-		}
-
-		value.SetUint(uint64(c.Default.(float64)))
-	case "int8":
-		if os.Getenv(c.Env) != "" {
-			val, err := strconv.ParseInt(os.Getenv(c.Env), 10, 8)
-			if err != nil {
-				return err
-			}
-			value.SetInt(val)
-			break
-		}
-
-		value.SetInt(int64(c.Default.(float64)))
-	case "int16":
-		if os.Getenv(c.Env) != "" {
-			val, err := strconv.ParseInt(os.Getenv(c.Env), 10, 16)
-			if err != nil {
-				return err
-			}
-			value.SetInt(val)
-			break
-		}
-
-		value.SetInt(int64(c.Default.(float64)))
-	case "int32":
-		if os.Getenv(c.Env) != "" {
-			val, err := strconv.ParseInt(os.Getenv(c.Env), 10, 32)
-			if err != nil {
-				return err
-			}
-			value.SetInt(val)
-			break
-		}
-
-		value.SetInt(int64(c.Default.(float64)))
-	case "int64":
-		if os.Getenv(c.Env) != "" {
-			val, err := strconv.ParseInt(os.Getenv(c.Env), 10, 64)
-			if err != nil {
-				return err
-			}
-			value.SetInt(val)
-			break
-		}
-
-		value.SetInt(int64(c.Default.(float64)))
+		f, err := strconv.ParseFloat(envValue, 32)
+		return float32(f), err
+	case "uint", "uint8", "uint16", "uint32", "uint64":
+		return strconv.ParseUint(envValue, 10, 64)
+	case "int8", "int16", "int32", "int64":
+		return strconv.ParseInt(envValue, 10, 64)
 	default:
-		return InvalidTypeError(c.Type)
+		return nil, InvalidTypeError(c.Type)
 	}
+}
 
+func (c *ConfigParser) LoadValue(value *reflect.Value) error {
+	envValue := os.Getenv(c.Env)
+	if envValue != "" {
+		convertedValue, err := c.convertValue(envValue)
+		if err != nil {
+			return err
+		}
+		value.Set(reflect.ValueOf(convertedValue).Convert(value.Type()))
+	} else {
+		value.Set(reflect.ValueOf(c.Default).Convert(value.Type()))
+	}
 	return nil
 }
 
 func (c *ConfigParser) SetValue(value *reflect.Value) error {
-	if c.Validate() != nil {
-		return c.Validate()
+	if err := c.Validate(); err != nil {
+		return err
 	}
 	return c.LoadValue(value)
 }
