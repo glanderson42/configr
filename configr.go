@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"strings"
+
+	"github.com/joho/godotenv"
 )
 
 func ParseConfig(input interface{}) error {
@@ -37,4 +39,14 @@ func ParseConfig(input interface{}) error {
 	}
 
 	return nil
+}
+
+func ParseConfigWithDotEnv(input interface{}, envs ...string) error {
+	for _, env := range envs {
+		if err := godotenv.Load(env); err != nil {
+			return err
+		}
+	}
+
+	return ParseConfig(input)
 }
